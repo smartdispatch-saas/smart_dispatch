@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SmartDispatch — Plateforme de Livraison</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{--bg:#0a0c10;--surface:#111318;--surface2:#181b22;--border:#22262f;--accent:#f97316;--accent2:#3b82f6;--accent3:#22c55e;--accent4:#a855f7;--text:#f1f5f9;--muted:#64748b;--danger:#ef4444}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+#loginPage{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 60% 40%,rgba(249,115,22,.08) 0%,transparent 60%),var(--bg)}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:48px 40px;width:420px;max-width:95vw}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo .icon{width:56px;height:56px;background:var(--accent);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:12px}
+.login-logo h1{font-size:24px;font-weight:800}
+.login-logo h1 span{color:var(--accent)}
+.login-logo p{color:var(--muted);font-size:13px;margin-top:4px}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:1px}
+.form-group input,.form-group select,.form-group textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;color:var(--text);font-family:'Syne',sans-serif;font-size:14px;outline:none;transition:border-color .2s}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent)}
+.btn-primary{width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:14px;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .2s;margin-top:8px}
+.btn-primary:hover{opacity:.9}
+.error-msg{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:12px;color:var(--danger);font-size:13px;margin-top:12px;display:none}
+#app{display:none;min-height:100vh;flex-direction:row}
+#app.visible{display:flex}
+.sidebar{width:240px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:24px 0;position:fixed;top:0;left:0;bottom:0;z-index:100}
+.s-logo{padding:0 20px 28px;display:flex;align-items:center;gap:10px}
+.s-logo-icon{width:34px;height:34px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.s-logo-text{font-size:17px;font-weight:800}
+.s-logo-text span{color:var(--accent)}
+.s-label{font-size:10px;letter-spacing:2px;color:var(--muted);font-family:'Space Mono',monospace;padding:0 20px;margin:16px 0 6px;text-transform:uppercase}
+.s-item{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);transition:all .2s}
+.s-item:hover{background:var(--surface2);color:var(--text)}
+.s-item.active{background:rgba(249,115,22,.12);color:var(--accent)}
+.s-item .si{font-size:16px;width:20px;text-align:center}
+.s-item .badge{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-family:'Space Mono',monospace;padding:2px 6px;border-radius:20px}
+.s-footer{padding:16px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;margin-top:auto}
+.s-avatar{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent4));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.s-user{flex:1}
+.s-user-name{font-size:12px;font-weight:700}
+.s-user-role{font-size:11px;color:var(--muted)}
+.s-logout{color:var(--muted);cursor:pointer;font-size:16px;transition:color .2s}
+.s-logout:hover{color:var(--danger)}
+.main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{height:60px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 28px;gap:16px;background:var(--surface);position:sticky;top:0;z-index:50}
+.topbar-title{font-size:18px;font-weight:800;flex:1}
+.topbar-title span{color:var(--accent)}
+.topbar-date{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted)}
+.content{padding:28px;flex:1}
+.page{display:none}
+.page.active{display:block}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;position:relative;overflow:hidden;transition:transform .2s}
+.stat-card:hover{transform:translateY(-2px)}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.stat-card.orange::before{background:var(--accent)}
+.stat-card.blue::before{background:var(--accent2)}
+.stat-card.green::before{background:var(--accent3)}
+.stat-card.purple::before{background:var(--accent4)}
+.stat-icon{font-size:22px;margin-bottom:10px}
+.stat-label{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.stat-value{font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1;margin-bottom:6px}
+.stat-card.orange .stat-value{color:var(--accent)}
+.stat-card.blue .stat-value{color:var(--accent2)}
+.stat-card.green .stat-value{color:var(--accent3)}
+.stat-card.purple .stat-value{color:var(--accent4)}
+.stat-delta{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px}
+.card-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border)}
+.card-title{font-size:14px;font-weight:700}
+.card-badge{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);background:var(--surface2);border:1px solid var(--border);padding:4px 10px;border-radius:20px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:'Space Mono',monospace;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface2)}
+td{padding:12px 20px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface2)}
+.id-cell{font-family:'Space Mono',monospace;font-size:12px;color:var(--accent)}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-family:'Space Mono',monospace;font-weight:700}
+.badge-green{background:rgba(34,197,94,.15);color:var(--accent3)}
+.badge-blue{background:rgba(59,130,246,.15);color:var(--accent2)}
+.badge-orange{background:rgba(249,115,22,.15);color:var(--accent)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--danger)}
+.filters{display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.filter-btn{font-family:'Space Mono',monospace;font-size:11px;padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer;transition:all .2s}
+.filter-btn:hover,.filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--muted);font-family:'Space Mono',monospace;font-size:13px;gap:10px}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{padding:40px;text-align:center;color:var(--muted);font-size:13px}
+.mid-row{display:grid;grid-template-columns:1fr 300px;gap:16px;margin-bottom:20px}
+.bar-chart{display:flex;align-items:flex-end;gap:6px;height:120px;padding:0 20px 20px;border-bottom:1px solid var(--border)}
+.bar-group{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
+.bar-wrap{flex:1;display:flex;align-items:flex-end;gap:2px;width:100%}
+.bar{flex:1;border-radius:3px 3px 0 0;min-height:2px}
+.bar.b1{background:var(--accent3)}
+.bar.b2{background:var(--accent2)}
+.bar.b3{background:var(--danger);opacity:.7}
+.bar-lbl{font-size:9px;font-family:'Space Mono',monospace;color:var(--muted)}
+.chart-legend{display:flex;gap:14px;padding:12px 20px}
+.leg-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:'Space Mono',monospace}
+.leg-dot{width:8px;height:8px;border-radius:2px}
+.status-list{padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.status-item{display:flex;align-items:center;gap:10px}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.status-info{flex:1}
+.status-name{font-size:12px;font-weight:600;margin-bottom:4px}
+.status-bar-wrap{height:3px;background:var(--surface2);border-radius:2px;overflow:hidden}
+.status-bar-fill{height:100%;border-radius:2px}
+.status-count{font-size:12px;font-weight:700;font-family:'Space Mono',monospace;min-width:28px;text-align:right}
+.drivers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;padding:20px}
+.driver-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;transition:border-color .2s}
+.driver-card:hover{border-color:var(--accent)}
+.driver-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.driver-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
+.driver-name{font-size:14px;font-weight:700}
+.driver-info{display:flex;flex-direction:column;gap:6px}
+.driver-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.add-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:opacity .2s}
+.add-btn:hover{opacity:.9}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal h3{font-size:16px;font-weight:700;margin-bottom:20px}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.btn-secondary{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 18px;font-family:'Syne',sans-serif;font-size:13px;font-weight:600;cursor:pointer}
+.btn-sm{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 20px;font-size:13px;z-index:300;transform:translateY(100px);opacity:0;transition:all .3s;max-width:400px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.success{border-color:var(--accent3)}
+.toast.error{border-color:var(--danger)}
+
+/* MAP */
+.map-container{display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100vh - 145px)}
+.map-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+.map-panel-header{padding:16px 20px;border-bottom:1px solid var(--border)}
+.map-panel-title{font-size:14px;font-weight:700;margin-bottom:2px}
+.map-panel-sub{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace}
+.map-panel-body{padding:16px;flex:1;overflow-y:auto}
+#map{border-radius:12px;border:1px solid var(--border);height:100%;min-height:400px}
+.opt-btn{width:100%;background:linear-gradient(135deg,var(--accent),#ea580c);color:#fff;border:none;border-radius:8px;padding:13px;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:8px}
+.opt-btn:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(249,115,22,.3)}
+.opt-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.map-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.map-stat{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center}
+.map-stat-val{font-size:20px;font-weight:800;color:var(--accent)}
+.map-stat-lbl{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace}
+.veh-sel{margin-bottom:12px}
+.veh-sel label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-family:'Space Mono',monospace;text-transform:uppercase}
+.veh-sel select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none}
+.route-result{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px}
+.route-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.route-color{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.route-title{font-size:13px;font-weight:700}
+.route-info{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace}
+.route-stop{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border)}
+.route-stop:last-child{border-bottom:none}
+.stop-num{width:18px;height:18px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:10px;font-family:'Space Mono',monospace;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<div id="loginPage">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="icon">🚚</div>
+      <h1>Smart<span>Dispatch</span></h1>
+      <p>Plateforme de dispatching — Dernier Kilomètre</p>
+    </div>
+    <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="dispatcher@smartdispatch.com"/></div>
+    <div class="form-group"><label>Mot de passe</label><input type="password" id="loginPass" placeholder="••••••••"/></div>
+    <button class="btn-primary" onclick="doLogin()">Se connecter</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
+</div>
+
+<div id="app">
+  <aside class="sidebar">
+    <div class="s-logo"><div class="s-logo-icon">🚚</div><div class="s-logo-text">Smart<span>Dispatch</span></div></div>
+    <div class="s-label">Principal</div>
+    <div class="s-item active" onclick="showPage('dashboard',this)"><span class="si">📊</span> Tableau de bord</div>
+    <div class="s-item" onclick="showPage('carte',this)"><span class="si">🗺️</span> Carte & Optimisation</div>
+    <div class="s-item" onclick="showPage('commandes',this)"><span class="si">📦</span> Commandes <span class="badge" id="cmdBadge">0</span></div>
+    <div class="s-item" onclick="showPage('livraisons',this)"><span class="si">🚴</span> Livraisons</div>
+    <div class="s-item" onclick="showPage('livreurs',this)"><span class="si">👷</span> Livreurs</div>
+    <div class="s-label">Gestion</div>
+    <div class="s-item" onclick="showPage('clients',this)"><span class="si">👥</span> Clients</div>
+    <div class="s-item" onclick="showPage('vehicules',this)"><span class="si">🚗</span> Véhicules</div>
+    <div class="s-footer">
+      <div class="s-avatar" id="userAvatar">AD</div>
+      <div class="s-user"><div class="s-user-name" id="userName">Dispatcher</div><div class="s-user-role">Gestionnaire</div></div>
+      <div class="s-logout" onclick="doLogout()">⏻</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title" id="pageTitle">Tableau de <span>Bord</span></div>
+      <div class="topbar-date" id="topbarDate"></div>
+    </header>
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div class="page active" id="page-dashboard">
+        <div class="stats-grid">
+          <div class="stat-card orange"><div class="stat-icon">📦</div><div class="stat-label">Commandes</div><div class="stat-value" id="stat-cmd">—</div><div class="stat-delta">Total enregistrées</div></div>
+          <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-label">Livraisons</div><div class="stat-value" id="stat-liv">—</div><div class="stat-delta">Total effectuées</div></div>
+          <div class="stat-card blue"><div class="stat-icon">👷</div><div class="stat-label">Livreurs</div><div class="stat-value" id="stat-lvr">—</div><div class="stat-delta">Actifs</div></div>
+          <div class="stat-card purple"><div class="stat-icon">👥</div><div class="stat-label">Clients</div><div class="stat-value" id="stat-cli">—</div><div class="stat-delta">Enregistrés</div></div>
+        </div>
+        <div class="mid-row">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Activité des commandes</div><div class="card-badge">Par statut</div></div>
+            <div class="bar-chart" id="barChart"></div>
+            <div class="chart-legend">
+              <div class="leg-item"><div class="leg-dot" style="background:var(--accent3)"></div>Livrées</div>
+              <div class="leg-item"><div class="leg-dot" style="background:var(--accent2)"></div>En attente</div>
+              <div class="leg-item"><div class="leg-dot" style="background:var(--danger)"></div>Annulées</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Statuts Livraisons</div></div>
+            <div class="status-list" id="statusList"><div class="loading"><div class="spinner"></div>Chargement...</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Dernières Commandes</div><div class="card-badge">Temps réel</div></div>
+          <div id="recentCmds"><div class="loading"><div class="spinner"></div>Chargement...</div></div>
+        </div>
+      </div>
+
+      <!-- CARTE -->
+      <div class="page" id="page-carte">
+        <div class="map-container">
+          <div class="map-panel">
+            <div class="map-panel-header">
+              <div class="map-panel-title">⚡ Optimisation VRP</div>
+              <div class="map-panel-sub">OR-Tools — Google OR-Tools</div>
+            </div>
+            <div class="map-panel-body">
+              <div class="veh-sel"><label>Nombre de livreurs</label>
+                <select id="numVehicles"><option value="1">1 Livreur</option><option value="2" selected>2 Livreurs</option><option value="3">3 Livreurs</option><option value="4">4 Livreurs</option></select>
+              </div>
+              <div class="veh-sel"><label>Capacité par livreur</label>
+                <select id="capacite"><option value="5">5 colis</option><option value="10" selected>10 colis</option><option value="15">15 colis</option><option value="20">20 colis</option></select>
+              </div>
+              <button class="opt-btn" id="optimizeBtn" onclick="runOptimization()">⚡ Optimiser les Routes</button>
+              <div class="map-stats" id="mapStats" style="display:none">
+                <div class="map-stat"><div class="map-stat-val" id="statDist">—</div><div class="map-stat-lbl">km total</div></div>
+                <div class="map-stat"><div class="map-stat-val" id="statVeh">—</div><div class="map-stat-lbl">livreurs</div></div>
+              </div>
+              <div id="routeResults"></div>
+            </div>
+          </div>
+          <div id="map"></div>
+        </div>
+      </div>
+
+      <!-- COMMANDES -->
+      <div class="page" id="page-commandes">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Gestion des Commandes</div><button class="add-btn" onclick="openModal('addCommande')">+ Nouvelle commande</button></div>
+          <div class="filters">
+            <button class="filter-btn active" onclick="filterCommandes('all',this)">Tout</button>
+            <button class="filter-btn" onclick="filterCommandes('En attente',this)">En attente</button>
+            <button class="filter-btn" onclick="filterCommandes('En cours',this)">En cours</button>
+            <button class="filter-btn" onclick="filterCommandes('Livrée',this)">Livrées</button>
+            <button class="filter-btn" onclick="filterCommandes('Annulée',this)">Annulées</button>
+          </div>
+          <div id="commandesTable"><div class="loading"><div class="spinner"></div>Chargement...</div></div>
+        </div>
+      </div>
+
+      <!-- LIVRAISONS -->
+      <div class="page" id="page-livraisons">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Suivi des Livraisons</div><div class="card-badge" id="liv-count">0 livraisons</div></div>
+          <div id="livraisonsTable"><div class="loading"><div class="spinner"></div>Chargement...</div></div>
+        </div>
+      </div>
+
+      <!-- LIVREURS -->
+      <div class="page" id="page-livreurs">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Équipe des Livreurs</div><button class="add-btn" onclick="openModal('addLivreur')">+ Nouveau livreur</button></div>
+          <div class="drivers-grid" id="livreursGrid"><div class="loading"><div class="spinner"></div>Chargement...</div></div>
+        </div>
+      </div>
+
+      <!-- CLIENTS -->
+      <div class="page" id="page-clients">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Gestion des Clients</div><div class="card-badge" id="cli-count">0 clients</div></div>
+          <div id="clientsTable"><div class="loading"><div class="spinner"></div>Chargement...</div></div>
+        </div>
+      </div>
+
+      <!-- VEHICULES -->
+      <div class="page" id="page-vehicules">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Parc Véhicules</div><div class="card-badge" id="veh-count">0 véhicules</div></div>
+          <div id="vehiculesTable"><div class="loading"><div class="spinner"></div>Chargement...</div></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-addCommande">
+  <div class="modal">
+    <h3>📦 Nouvelle Commande</h3>
+    <div class="form-group"><label>Numéro</label><input type="text" id="cmd-num" placeholder="CMD-001"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Statut</label><select id="cmd-statut"><option>En attente</option><option>En cours</option><option>Livrée</option><option>Annulée</option></select></div>
+      <div class="form-group"><label>Priorité</label><select id="cmd-priorite"><option>Normale</option><option>Haute</option><option>Urgente</option></select></div>
+    </div>
+    <div class="form-group"><label>Description</label><textarea id="cmd-desc" rows="3"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('addCommande')">Annuler</button>
+      <button class="btn-sm" onclick="saveCommande()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-addLivreur">
+  <div class="modal">
+    <h3>👷 Nouveau Livreur</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Nom</label><input type="text" id="lvr-nom"/></div>
+      <div class="form-group"><label>Prénom</label><input type="text" id="lvr-prenom"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Téléphone</label><input type="text" id="lvr-tel"/></div>
+      <div class="form-group"><label>Email</label><input type="email" id="lvr-email"/></div>
+    </div>
+    <div class="form-group"><label>Mot de passe</label><input type="password" id="lvr-pass"/></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('addLivreur')">Annuler</button>
+      <button class="btn-sm" onclick="saveLivreur()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL='https://gbznrtyrmfgfaaadjqqn.supabase.co';
+const SUPABASE_KEY='sb_publishable_pE1FBl2r9wjukTlnlwOlfQ_oNJE6Pin';
+const BACKEND_URL='http://localhost:8000';
+const {createClient}=supabase;
+const sb=createClient(SUPABASE_URL,SUPABASE_KEY);
+const COLORS=['#f97316','#3b82f6','#22c55e','#a855f7','#ef4444','#06b6d4'];
+
+let map=null,routeLayers=[],allCommandes=[];
+
+function updateDate(){document.getElementById('topbarDate').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}
+updateDate();
+
+function showToast(msg,type='success'){const t=document.getElementById('toast');t.textContent=(type==='success'?'✅ ':'❌ ')+msg;t.className=`toast ${type} show`;setTimeout(()=>t.className='toast',4000);}
+
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value;
+  const pass=document.getElementById('loginPass').value;
+  const err=document.getElementById('loginError');
+  if(!email||!pass){err.textContent='Remplissez tous les champs.';err.style.display='block';return;}
+  err.style.display='none';
+  const{data,error}=await sb.auth.signInWithPassword({email,password:pass});
+  if(error){err.textContent='Email ou mot de passe incorrect.';err.style.display='block';}
+  else{
+    const name=email.split('@')[0];
+    document.getElementById('userName').textContent=name;
+    document.getElementById('userAvatar').textContent=name.substring(0,2).toUpperCase();
+    document.getElementById('loginPage').style.display='none';
+    document.getElementById('app').classList.add('visible');
+    loadDashboard();
+  }
+}
+document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+async function doLogout(){await sb.auth.signOut();document.getElementById('loginPage').style.display='flex';document.getElementById('app').classList.remove('visible');}
+
+function showPage(name,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.s-item').forEach(i=>i.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(el)el.classList.add('active');
+  const titles={dashboard:'Tableau de <span style="color:var(--accent)">Bord</span>',carte:'Carte & <span style="color:var(--accent)">Optimisation</span>',commandes:'Gestion des <span style="color:var(--accent)">Commandes</span>',livraisons:'Suivi des <span style="color:var(--accent)">Livraisons</span>',livreurs:'Équipe <span style="color:var(--accent)">Livreurs</span>',clients:'Gestion des <span style="color:var(--accent)">Clients</span>',vehicules:'Parc <span style="color:var(--accent)">Véhicules</span>'};
+  document.getElementById('pageTitle').innerHTML=titles[name]||name;
+  if(name==='carte')initMap();
+  if(name==='commandes')loadCommandes();
+  if(name==='livraisons')loadLivraisons();
+  if(name==='livreurs')loadLivreurs();
+  if(name==='clients')loadClients();
+  if(name==='vehicules')loadVehicules();
+}
+
+// MAP
+const DEMO_CLIENTS=[
+  {id:1,nom:'Client belle vue',latitude:36.3715,longitude:6.6190,demande:1},
+  {id:2,nom:'Client Hamma Bouziane',latitude:36.3560,longitude:6.6005,demande:1},
+  {id:3,nom:'Client Ali Mendjeli',latitude:36.3450,longitude:6.6320,demande:1},
+  {id:4,nom:'Client Zouaghi',latitude:36.3810,longitude:6.6070,demande:1},
+  {id:5,nom:'Client Constantine',latitude:36.3910,longitude:6.6560,demande:1},
+];
+const DEPOT={id:0,nom:'Dépôt Principal',latitude:36.365,longitude:6.6147,demande:0};
+
+function initMap(){
+  if(map)return;
+  setTimeout(()=>{
+    map=L.map('map').setView([36.365,6.6147],13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+    // Depot marker
+    L.marker([DEPOT.latitude,DEPOT.longitude],{icon:L.divIcon({html:'<div style="background:#f97316;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,.4)">🏭</div>',className:'',iconAnchor:[16,16]})}).addTo(map).bindPopup('<b>🏭 Dépôt Principal</b><br>Point de départ/arrivée');
+    // Client markers
+    DEMO_CLIENTS.forEach((c,i)=>{
+      L.marker([c.latitude,c.longitude],{icon:L.divIcon({html:`<div style="background:#3b82f6;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;color:white;font-weight:bold;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3)">${i+1}</div>`,className:'',iconAnchor:[14,14]})}).addTo(map).bindPopup(`<b>📦 ${c.nom}</b>`);
+    });
+    showToast('Carte chargée — 5 clients affichés 🗺️');
+  },200);
+}
+
+async function runOptimization(){
+  const btn=document.getElementById('optimizeBtn');
+  btn.disabled=true;
+  btn.innerHTML='<div class="spinner"></div> Calcul en cours...';
+  const numV=parseInt(document.getElementById('numVehicles').value);
+  const cap=parseInt(document.getElementById('capacite').value);
+  const vehicles=Array.from({length:numV},(_,i)=>({id:i+1,capacite:cap,depot_id:0}));
+  try{
+    const res=await fetch(`${BACKEND_URL}/optimize`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({locations:DEMO_CLIENTS,vehicles,depot:DEPOT})});
+    if(!res.ok)throw new Error();
+    const result=await res.json();
+    // Clear old routes
+    routeLayers.forEach(l=>map.removeLayer(l));
+    routeLayers=[];
+    // Draw routes
+    result.routes.forEach((route,idx)=>{
+      const color=COLORS[idx%COLORS.length];
+      const coords=route.stops.map(s=>[s.latitude,s.longitude]);
+      const poly=L.polyline(coords,{color,weight:4,opacity:.85,dashArray:'10,5'}).addTo(map);
+      routeLayers.push(poly);
+      route.stops.forEach((stop,i)=>{
+        if(stop.nom.startsWith('🏭'))return;
+        const m=L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({html:`<div style="background:${color};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;color:white;font-weight:bold;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3)">${stop.ordre}</div>`,className:'',iconAnchor:[14,14]})}).addTo(map).bindPopup(`<b>${stop.nom}</b><br>Livreur ${route.vehicle_id}`);
+        routeLayers.push(m);
+      });
+    });
+    if(routeLayers.length)map.fitBounds(L.featureGroup(routeLayers).getBounds().pad(0.15));
+    // Stats
+    document.getElementById('mapStats').style.display='grid';
+    document.getElementById('statDist').textContent=result.distance_totale_km;
+    document.getElementById('statVeh').textContent=result.nombre_vehicules_utilises;
+    // Routes list
+    document.getElementById('routeResults').innerHTML=result.routes.map((route,idx)=>{
+      const color=COLORS[idx%COLORS.length];
+      const stops=route.stops.filter(s=>!s.nom.startsWith('🏭'));
+      return `<div class="route-result">
+        <div class="route-header"><div class="route-color" style="background:${color}"></div><div><div class="route-title">Livreur ${route.vehicle_id}</div><div class="route-info">${route.nombre_livraisons} livraisons • ${route.distance_totale_km} km</div></div></div>
+        <div>${stops.map((s,i)=>`<div class="route-stop"><div class="stop-num" style="color:${color}">${i+1}</div><span>${s.nom.replace('📦 ','')}</span></div>`).join('')}</div>
+      </div>`;
+    }).join('');
+    showToast(result.message);
+  }catch(e){
+    showToast('Backend non disponible! Lancez: py -3.12 -m uvicorn main:app --reload','error');
+  }
+  btn.disabled=false;
+  btn.innerHTML='⚡ Optimiser les Routes';
+}
+
+// DASHBOARD
+async function loadDashboard(){
+  const[cmd,liv,lvr,cli]=await Promise.all([sb.from('Commande').select('*',{count:'exact'}),sb.from('Livraison').select('*',{count:'exact'}),sb.from('Livreur').select('*',{count:'exact'}),sb.from('Client').select('*',{count:'exact'})]);
+  document.getElementById('stat-cmd').textContent=cmd.count??0;
+  document.getElementById('stat-liv').textContent=liv.count??0;
+  document.getElementById('stat-lvr').textContent=lvr.count??0;
+  document.getElementById('stat-cli').textContent=cli.count??0;
+  document.getElementById('cmdBadge').textContent=cmd.count??0;
+  const livData=liv.data||[];
+  const sc={};livData.forEach(l=>{const s=l.Statut||'Inconnu';sc[s]=(sc[s]||0)+1;});
+  const total=livData.length||1;
+  const sColors={'Livrée':'var(--accent3)','En cours':'var(--accent2)','En attente':'var(--accent)','Échec':'var(--danger)'};
+  document.getElementById('statusList').innerHTML=Object.keys(sc).length?Object.entries(sc).map(([s,c])=>`<div class="status-item"><div class="status-dot" style="background:${sColors[s]||'var(--muted)'}"></div><div class="status-info"><div class="status-name">${s}</div><div class="status-bar-wrap"><div class="status-bar-fill" style="width:${Math.round(c/total*100)}%;background:${sColors[s]||'var(--muted)'}"></div></div></div><div class="status-count" style="color:${sColors[s]||'var(--muted)'}">${c}</div></div>`).join(''):'<div class="empty">Aucune livraison</div>';
+  const days=['Lun','Mar','Mer','Jeu','Ven','Sam','Auj'];const max=20;
+  document.getElementById('barChart').innerHTML=days.map(d=>{const v1=Math.floor(Math.random()*max)+2,v2=Math.floor(Math.random()*8),v3=Math.floor(Math.random()*3);const h=v=>Math.round(v/max*90);return`<div class="bar-group"><div class="bar-wrap"><div class="bar b1" style="height:${h(v1)}px"></div><div class="bar b2" style="height:${h(v2)}px"></div><div class="bar b3" style="height:${h(v3)}px"></div></div><div class="bar-lbl">${d}</div></div>`;}).join('');
+  const recent=await sb.from('Commande').select('*').order('date_creation',{ascending:false}).limit(5);
+  const data=recent.data||[];
+  document.getElementById('recentCmds').innerHTML=!data.length?'<div class="empty">Aucune commande</div>':`<table><thead><tr><th>ID</th><th>Num</th><th>Statut</th><th>Priorité</th><th>Date</th></tr></thead><tbody>${data.map(c=>`<tr><td><span class="id-cell">#${c.id}</span></td><td>${c.Num||'—'}</td><td>${statusBadge(c.Statut)}</td><td>${prioriteBadge(c.Priorite)}</td><td>${c.date_creation?c.date_creation.substring(0,10):'—'}</td></tr>`).join('')}</tbody></table>`;
+}
+
+async function loadCommandes(){
+  document.getElementById('commandesTable').innerHTML='<div class="loading"><div class="spinner"></div>Chargement...</div>';
+  const{data}=await sb.from('Commande').select('*').order('id',{ascending:false});
+  allCommandes=data||[];renderCommandes(allCommandes);
+}
+function renderCommandes(data){
+  if(!data.length){document.getElementById('commandesTable').innerHTML='<div class="empty">Aucune commande</div>';return;}
+  document.getElementById('commandesTable').innerHTML=`<table><thead><tr><th>ID</th><th>Numéro</th><th>Statut</th><th>Priorité</th><th>Date</th><th>Description</th></tr></thead><tbody>${data.map(c=>`<tr><td><span class="id-cell">#${c.id}</span></td><td>${c.Num||'—'}</td><td>${statusBadge(c.Statut)}</td><td>${prioriteBadge(c.Priorite)}</td><td>${c.date_creation?c.date_creation.substring(0,10):'—'}</td><td style="color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.Description||'—'}</td></tr>`).join('')}</tbody></table>`;
+}
+function filterCommandes(statut,el){document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderCommandes(statut==='all'?allCommandes:allCommandes.filter(c=>c.Statut===statut));}
+async function saveCommande(){
+  const obj={Num:document.getElementById('cmd-num').value,Statut:document.getElementById('cmd-statut').value,Priorite:document.getElementById('cmd-priorite').value,Description:document.getElementById('cmd-desc').value,date_creation:new Date().toISOString()};
+  const{error}=await sb.from('Commande').insert([obj]);
+  if(error)showToast('Erreur: '+error.message,'error');
+  else{showToast('Commande ajoutée!');closeModal('addCommande');loadCommandes();}
+}
+
+async function loadLivraisons(){
+  const{data}=await sb.from('Livraison').select('*').order('id',{ascending:false});
+  const livs=data||[];
+  document.getElementById('liv-count').textContent=livs.length+' livraisons';
+  document.getElementById('livraisonsTable').innerHTML=!livs.length?'<div class="empty">Aucune livraison</div>':`<table><thead><tr><th>ID</th><th>Ordre</th><th>Statut</th><th>Début estimé</th><th>Fin estimée</th><th>Motif échec</th></tr></thead><tbody>${livs.map(l=>`<tr><td><span class="id-cell">#${l.id}</span></td><td>${l.Ordre||'—'}</td><td>${statusBadge(l.Statut)}</td><td style="color:var(--muted);font-size:12px">${l.heure_debut_estime||'—'}</td><td style="color:var(--muted);font-size:12px">${l.heure_fin_estime||'—'}</td><td style="color:var(--danger);font-size:12px">${l.Motif_echec||'—'}</td></tr>`).join('')}</tbody></table>`;
+}
+
+async function loadLivreurs(){
+  const{data}=await sb.from('Livreur').select('*');
+  const lvrs=data||[];
+  const colors=['rgba(249,115,22,.2)','rgba(59,130,246,.2)','rgba(34,197,94,.2)','rgba(168,85,247,.2)'];
+  const tc=['var(--accent)','var(--accent2)','var(--accent3)','var(--accent4)'];
+  document.getElementById('livreursGrid').innerHTML=!lvrs.length?'<div class="empty">Aucun livreur</div>':lvrs.map((l,i)=>`<div class="driver-card"><div class="driver-head"><div class="driver-avatar" style="background:${colors[i%4]};color:${tc[i%4]}">${(l.Nom||'?').charAt(0)}${(l.Prenom||'').charAt(0)}</div><div><div class="driver-name">${l.Nom||''} ${l.Prenom||''}</div><span class="badge badge-green">Actif</span></div></div><div class="driver-info"><div class="driver-row"><span>📞</span><span>${l.Tele||'—'}</span></div><div class="driver-row"><span>✉️</span><span>${l.Email||'—'}</span></div></div></div>`).join('');
+}
+async function saveLivreur(){
+  const obj={Nom:document.getElementById('lvr-nom').value,Prenom:document.getElementById('lvr-prenom').value,Tele:document.getElementById('lvr-tel').value,Email:document.getElementById('lvr-email').value,mot_de_passe:document.getElementById('lvr-pass').value};
+  const{error}=await sb.from('Livreur').insert([obj]);
+  if(error)showToast('Erreur: '+error.message,'error');
+  else{showToast('Livreur ajouté!');closeModal('addLivreur');loadLivreurs();}
+}
+
+async function loadClients(){
+  const{data}=await sb.from('Client').select('*');
+  const cls=data||[];
+  document.getElementById('cli-count').textContent=cls.length+' clients';
+  document.getElementById('clientsTable').innerHTML=!cls.length?'<div class="empty">Aucun client</div>':`<table><thead><tr><th>ID</th><th>Nom</th><th>Téléphone</th><th>Email</th><th>Adresse</th></tr></thead><tbody>${cls.map(c=>`<tr><td><span class="id-cell">#${c.id}</span></td><td style="font-weight:600">${c.Nom||'—'}</td><td style="color:var(--muted)">${c.Téléphone||'—'}</td><td style="color:var(--muted)">${c.Email||'—'}</td><td style="color:var(--muted)">${c.Adress||'—'}</td></tr>`).join('')}</tbody></table>`;
+}
+
+async function loadVehicules(){
+  const{data}=await sb.from('Véhicule').select('*');
+  const vehs=data||[];
+  document.getElementById('veh-count').textContent=vehs.length+' véhicules';
+  document.getElementById('vehiculesTable').innerHTML=!vehs.length?'<div class="empty">Aucun véhicule</div>':`<table><thead><tr><th>ID</th><th>Immatriculation</th><th>Marque</th><th>Modèle</th><th>Année</th><th>Cap. Poids</th></tr></thead><tbody>${vehs.map(v=>`<tr><td><span class="id-cell">#${v.id}</span></td><td style="font-weight:700;font-family:'Space Mono',monospace">${v.immatriculation||'—'}</td><td>${v.marque||'—'}</td><td>${v.modele||'—'}</td><td>${v.annee||'—'}</td><td>${v.capacite_poids?v.capacite_poids+' kg':'—'}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function statusBadge(s){const m={'Livrée':'green','En cours':'blue','En attente':'orange','Annulée':'red','Échec':'red'};return`<span class="badge badge-${m[s]||'blue'}">${s||'—'}</span>`;}
+function prioriteBadge(p){const m={'Urgente':'red','Haute':'orange','Normale':'blue'};return`<span class="badge badge-${m[p]||'blue'}">${p||'Normale'}</span>`;}
+
+function openModal(name){document.getElementById('modal-'+name).classList.add('open');}
+function closeModal(name){document.getElementById('modal-'+name).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
+
+(async()=>{
+  const{data:{session}}=await sb.auth.getSession();
+  if(session){
+    const name=session.user.email.split('@')[0];
+    document.getElementById('userName').textContent=name;
+    document.getElementById('userAvatar').textContent=name.substring(0,2).toUpperCase();
+    document.getElementById('loginPage').style.display='none';
+    document.getElementById('app').classList.add('visible');
+    loadDashboard();
+  }
+})();
+</script>
+</body>
+</html>
